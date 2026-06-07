@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Onramp Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+    <style>
+      :root {
+        --surface: #ffffff;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --buy-soft: #ecfdf5;
+        --buy-mid: #d1fae5;
+        --buy-strong: #10b981;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+      }
+      ::-webkit-scrollbar {
+        display: none;  /* Chrome, Safari, Opera */
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        min-height: 100vh;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: #ffffff;
+        overflow-x: hidden;
+      }
+
+      .modal {
+        width: 100%;
+        max-width: 980px;
+        margin: 0 auto;
+        background: transparent;
+        border-radius: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+
+
+      .error {
+        display: none;
+        margin-bottom: 14px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid #fecaca;
+        background: #fef2f2;
+        color: #dc2626;
+        font-size: 0.9rem;
+      }
+
+      .error.visible {
+        display: block;
+      }
+
+      .action-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .premium-btn {
+        width: 100%;
+        font-family: 'Instrument Serif', serif;
+        font-size: 1.6rem;
+        font-style: italic;
+        font-weight: 400;
+        text-transform: capitalize;
+        letter-spacing: 0.03em;
+        border: 1px solid #111111;
+        border-radius: 0px;
+        padding: 12px 24px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      #launch-button {
+        background: #111111;
+        color: #ffffff;
+      }
+
+      #launch-button:hover {
+        background: #333333;
+        border-color: #333333;
+      }
+
+      #launch-button-withdraw {
+        background: #ffffff;
+        color: #111111;
+      }
+
+      #launch-button-withdraw:hover {
+        background: #f5f5f5;
+      }
+
+      .premium-btn:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
+
+
+      .widget-host {
+        margin-top: 18px;
+        height: 820px;
+        border-radius: 24px;
+        border: 1px solid var(--line);
+        background: #f8fafc;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .widget-host iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+
+      @media (max-width: 760px) {
+        body {
+          padding: 20px 12px;
+        }
+
+        .modal {
+          padding: 22px 18px 18px;
+        }
+
+        .widget-host {
+          height: 640px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <section class="modal">
+
+      <div id="sdk-error" class="error"></div>
+
+      <div class="action-buttons">
+        <button id="launch-button" class="premium-btn">Add Money</button>
+        <button id="launch-button-withdraw" class="premium-btn">Withdraw Money</button>
+      </div>
+
+      <div id="onramp-embed" class="widget-host"></div>
+    </section>
+
+    <script src="./vendor/onramp-web-sdk.umd.v2.js"></script>
+    <script>
+      const launchButton = document.getElementById('launch-button');
+      const withdrawButton = document.getElementById('launch-button-withdraw');
+      const sdkErrorEl = document.getElementById('sdk-error');
+      const statusEl = document.getElementById('status');
+      const onrampEmbedEl = document.getElementById('onramp-embed');
+      let isLoading = false;
+
+      function setStatus(message) {
+        if (statusEl) {
+          statusEl.textContent = message;
+        }
+      }
+
+      function setError(message) {
+        if (!message) {
+          sdkErrorEl.textContent = '';
+          sdkErrorEl.classList.remove('visible');
+          return;
+        }
+
+        sdkErrorEl.textContent = message;
+        sdkErrorEl.classList.add('visible');
+      }
+
+      function setLoading(nextLoading) {
+        isLoading = nextLoading;
+        launchButton.disabled = nextLoading;
+        launchButton.textContent = nextLoading ? 'Opening...' : 'Add Money';
+        if (withdrawButton) {
+          withdrawButton.disabled = nextLoading;
+          withdrawButton.textContent = nextLoading ? 'Opening...' : 'Withdraw Money';
+        }
+      }
+
+      const handleLaunch = async () => {
+        if (isLoading) return;
+
+        setLoading(true);
+        setError(null);
+        setStatus('Preparing Onramp widget...');
+
+        try {
+          if (onrampEmbedEl) {
+            onrampEmbedEl.innerHTML = '';
+          }
+
+          const OnrampWebSDKCtor = window['onramp-web-sdk']?.OnrampWebSDK;
+          if (!OnrampWebSDKCtor) {
+            throw new Error('Onramp SDK loaded without exposing window["onramp-web-sdk"].OnrampWebSDK');
+          }
+
+          const onrampSDK = new OnrampWebSDKCtor({
+            appId: 1,
+            coinCode: 'algo',
+            network: 'algo',
+            containerId: '#onramp-embed',
+            fiatAmount: 100,
+            flowType: 1,
+            theme: {
+              lightMode: {
+                baseColor: '#111111',
+                inputRadius: '0px',
+                buttonRadius: '0px'
+              },
+              default: 'lightMode'
+            },
+            lang: 'en',
+            sandbox: true
+          });
+
+          onrampSDK.on('TX_EVENTS', event => {
+            if (event.type === 'ONRAMP_WIDGET_TX_SUCCESSFUL') {
+              setStatus('Transaction successful.');
+            }
+          });
+
+          onrampSDK.on('WIDGET_EVENTS', event => {
+            if (event.type === 'ONRAMP_WIDGET_READY') {
+              setStatus('Widget opened.');
+            }
+          });
+
+          await onrampSDK.show();
+          setStatus('Widget opened for preview.');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          setError(message || 'Failed to load Onramp widget');
+          setStatus('Widget failed to open.');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      launchButton.addEventListener('click', handleLaunch);
+      if (withdrawButton) {
+        withdrawButton.addEventListener('click', handleLaunch);
+      }
+    </script>
+  </body>
+</html>
